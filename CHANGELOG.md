@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.10.0
+* Support x509 Key Pair option
+
+
 ## 1.9.0
 
 New features

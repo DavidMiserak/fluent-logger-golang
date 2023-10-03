@@ -40,6 +40,10 @@ const (
 
 	// Default value whether to skip checking insecure certs on TLS connections.
 	defaultTlsInsecureSkipVerify = false
+
+	// Default values for cert and key pair
+	defaultTlsCertFile = ""
+	defaultTlsKeyFile  = ""
 )
 
 // randomGenerator is used by getUniqueId to generate ack hashes. Its value is replaced
@@ -81,6 +85,10 @@ type Config struct {
 
 	// Flag to skip verifying insecure certs on TLS connections
 	TlsInsecureSkipVerify bool `json: "tls_insecure_skip_verify"`
+
+	// Cert file and key file
+	TlsCertFile string `json: "tls_cert_file"`
+	TlsKeyFile  string `json: "tls_key_file"`
 }
 
 type ErrUnknownNetwork struct {
@@ -165,6 +173,12 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	if !config.TlsInsecureSkipVerify {
 		config.TlsInsecureSkipVerify = defaultTlsInsecureSkipVerify
 	}
+	if config.TlsCertFile == "" {
+		config.TlsCertFile = defaultTlsCertFile
+	}
+	if config.TlsKeyFile == "" {
+		config.TlsKeyFile = defaultTlsKeyFile
+	}
 	if config.AsyncConnect {
 		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
 		config.Async = config.Async || config.AsyncConnect
@@ -200,27 +214,26 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 //
 // Examples:
 //
-//  // send map[string]
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  f.Post("tag_name", mapStringData)
+//	// send map[string]
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	f.Post("tag_name", mapStringData)
 //
-//  // send message with specified time
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  tm := time.Now()
-//  f.PostWithTime("tag_name", tm, mapStringData)
+//	// send message with specified time
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	tm := time.Now()
+//	f.PostWithTime("tag_name", tm, mapStringData)
 //
-//  // send struct
-//  structData := struct {
-//  		Name string `msg:"name"`
-//  } {
-//  		"john smith",
-//  }
-//  f.Post("tag_name", structData)
-//
+//	// send struct
+//	structData := struct {
+//			Name string `msg:"name"`
+//	} {
+//			"john smith",
+//	}
+//	f.Post("tag_name", structData)
 func (f *Fluent) Post(tag string, message interface{}) error {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)
@@ -442,6 +455,13 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "tls":
 		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
+		if (f.Config.TlsCertFile != "") && (f.Config.TlsKeyFile != "") {
+			cert, err := tls.LoadX509KeyPair(f.Config.TlsCertFile, f.Config.TlsKeyFile)
+			if err != nil {
+				return err
+			}
+			tlsConfig = &tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
+		}
 		f.conn, err = tls.DialWithDialer(
 			&net.Dialer{Timeout: f.Config.Timeout},
 			"tcp",
